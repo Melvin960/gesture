@@ -5,13 +5,15 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 import pygame
 import random
+from playsound import playsound
 import time
-
-# Initialize Pygame
+    
 pygame.init()
+pygame.mixer.init()
+
 
 # Set up the display in full-screen mode
-screen = pygame.display.set_mode((1080, 1920), pygame.FULLSCREEN)
+screen = pygame.display.set_mode((1600, 900), pygame.FULLSCREEN)
 pygame.display.set_caption("Hand Gesture Game")
 # Get the dimensions of the screen
 screen_width, screen_height = pygame.display.get_surface().get_size()
@@ -19,10 +21,18 @@ fullscreen = True
 
 # Create a variable to track the game state
 game_started = False
-
+s=0
+n=0
+over=0
+correct =0
 # Load a background image for the start screen
 start_screen_bg = pygame.image.load("start_screen_bg.jpg")
 start_screen_bg = pygame.transform.scale(start_screen_bg, (screen_width, screen_height))
+timer = pygame.mixer.Sound("10sectimer1.mp3")
+endsound = pygame.mixer.Sound("endsound.mp3")
+happysound = pygame.mixer.Sound("happysound.mp3")
+timeout = pygame.mixer.Sound("timeout.mp3")
+
 
 # Function to display the start screen
 def display_start_screen():
@@ -95,8 +105,8 @@ cap = cv2.VideoCapture(0)
 # Flag to track full-screen mode
 fullscreen = False
 # Timer variables
-countdown_start_time = 0
-countdown_duration = 10 #10 sec
+countdown_start_time = time.time()
+countdown_duration = 60 #10 sec
 countdown_color = (0, 0, 255)  # Default color (blue)
 
 while True:
@@ -106,7 +116,13 @@ while True:
             cap.release()
             cv2.destroyAllWindows()
             exit()
-
+        
+        if correct >=4:
+            correct =0
+            countdown_duration-=5
+            if countdown_duration<=5:
+                countdown_duration+=5
+                
         # Check for keyboard events
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
@@ -128,15 +144,16 @@ while True:
             elif event.key == pygame.K_RETURN:
                 if not game_started:
                     game_started = True
+                    initial_game_start = True  # Mark initial game start
+                    show_countdown_timer = True 
 
     # Display the start screen if the game has not started
     if not game_started:
         display_start_screen()
+        pygame.display.update() 
     else:
-        # The rest of your game code here...
-        if not game_over:
             if fullscreen == False:
-                # Read each frame from the webcam
+                # Read each frame from the webcam       
                 _, frame = cap.read()
 
                 # Flip the frame vertically
@@ -147,6 +164,7 @@ while True:
                 result = hands.process(frame)
 
                 className = ''
+            
 
                 frame = cv2.resize(frame, (screen_width, screen_height))
 
@@ -214,16 +232,23 @@ while True:
                 feedback_text_render = font.render(feedback_text, True, (255, 255, 255))
                 screen.blit(feedback_text_render, (400 - feedback_text_render.get_width() // 2, 300))
 
-            # Check if the recognized gesture matches the target
+            
+       
             if className == current_target:
                 if className not in user_gestures:
+                    n=n+1
                     user_gestures.append(className)
                     score += 1
                     feedback_color = (0, 250, 0)  # Green for correct gesture
                     feedback_text = "Correct!"
+                    correct+=1
                     feedback_start_time = current_time  # Reset feedback timer for correct gesture
                     pygame.draw.rect(screen, feedback_color, (0, 0, screen_width, screen_height))
-
+                    if score == 8:
+                            game_over = True
+                    countdown_start_time = current_time  # Restart the countdown timer
+                    countdown_elapsed_time = current_time - countdown_start_time
+                    remaining_time= max(0, countdown_duration - countdown_elapsed_time)
                     # Draw the "Correct!" text
                     font = pygame.font.Font(None, 100)
                     text_render = font.render(feedback_text, True, (255, 255, 255))
@@ -231,54 +256,105 @@ while True:
                     screen.blit(text_render, text_rect.center)
 
                     pygame.display.flip()  # Update the display
-
+                    # playsound('happysound') 
                     # Wait for 3 seconds
                     time.sleep(3)
+                    feedback_color = (0, 0, 0)
+                    feedback_text = ""
+                    if (s+n)<=2:
+                        game_over==True
+
+                    # Start the countdown timer
+                    countdown_start_time = current_time
+                    countdown_color = (0, 0, 255) 
+                   # Reset countdown color to blue
+                    if remaining_time <=11:
+                        countdown_color = (255,0,0) 
+                else:
+                    feedback_color = (0, 0, 0)
+                    feedback_text = ""
+            
+            else:
+                s=s+1
+                countdown_elapsed_time = current_time - countdown_start_time
+                remaining_time= max(0, countdown_duration - countdown_elapsed_time)
+                print(remaining_time)
+                if remaining_time <= 0:
+                    user_gestures.append(className)
+                    feedback_color = (255, 0, 0)  # Green for correct gesture
+                    feedback_text = "Oh sorry, Time is over"
+                    over+=1
+                    if(over == 4):
+                        game_over = True
+                    feedback_start_time = current_time  # Reset feedback timer for correct gesture
+                    pygame.draw.rect(screen, feedback_color, (0, 0, screen_width, screen_height))
+                    
+                    # Draw the "Correct!" text
+                    font = pygame.font.Font(None, 100)
+                    text_render = font.render(feedback_text, True, (255, 255, 255))
+                    text_rect = text_render.get_rect(center=(450, 300))
+                    screen.blit(text_render, text_rect.center)
+                    pygame.display.flip()  # Update the display
+                    # playsound('timeout.mp3') 
+                    # Wait for 3 seconds
+                    time.sleep(1)
                     feedback_color = (0, 0, 0)
                     feedback_text = ""
 
                     # Start the countdown timer
                     countdown_start_time = current_time
-                    countdown_color = (0, 0, 255)  # Reset countdown color to blue
+                    countdown_color = (0, 0, 255) 
+                    # Reset countdown color to blue
+                    if remaining_time <=11:
+                        countdown_color = (255,0,0) 
+            
+                        
+                        
+                   
+                   
+                font = pygame.font.Font(None, 72)
+                countdown_text = font.render(f"Time Left: {int(remaining_time)}", True, countdown_color)
+                screen.blit(countdown_text, (screen_width // 2 - countdown_text.get_width() // 2, 20))
+                
 
-            else:
-                feedback_color = (0, 0, 0)  # Reset feedback color to default (black)
-                feedback_text = ""
 
-            # Calculate the remaining time for the countdown timer
-            countdown_elapsed_time = current_time - countdown_start_time
-            remaining_time = max(0, countdown_duration - countdown_elapsed_time)
+                
+            
 
-            # Change countdown color to red after 50 seconds
-            if remaining_time <= 10:
-                countdown_color = (255, 0, 0)  # Red color
-
-            # Display the countdown timer
-            font = pygame.font.Font(None, 72)
-            countdown_text = font.render(f"Time Left: {int(remaining_time)}", True, countdown_color)
-            screen.blit(countdown_text, (screen_width // 2 - countdown_text.get_width() // 2, 20))
 
             # Check if the countdown timer has ended
+            #implement the game over
+            countdown_elapsed_time = current_time - countdown_start_time
+            remaining_time= max(0, countdown_duration - countdown_elapsed_time)
             if remaining_time <= 0:
-                feedback_start_time = 0  # Reset feedback timer
-                user_gestures = []  # Clear user gestures
-                current_target = random.choice(available_gestures)  # Choose a new random target gesture
-                countdown_start_time = current_time  # Restart the countdown timer
-
-        # Game Over screen and Restart button
-        else:
-            # Display "Game Over" message
-            game_over_font = pygame.font.Font(None, 92)
-            game_over_text = game_over_font.render("Game Over", True, (255, 0, 0))
-            screen.blit(game_over_text, (screen_width // 2 - game_over_text.get_width() // 2, 300))
-
-            # Display "Restart" button
-            restart_prompt_font = pygame.font.Font(None, 48)
-            restart_prompt_text = restart_prompt_font.render("Press Enter to Restart", True, (0, 255, 0))
-            screen.blit(restart_prompt_text, (screen_width // 2 - restart_prompt_text.get_width() // 2, 350))
-
+                game_over = True
+                feedback_color = (255, 0, 0)
+                feedback_text = "Oh sorry, Time is over"
+                feedback_start_time = current_time
+                pygame.draw.rect(screen, feedback_color, (0, 0, screen_width, screen_height))
+                # Draw the "Correct!" text
+                font = pygame.font.Font(None, 100)
+                text_render = font.render(feedback_text, True, (255, 255, 255))
+                text_rect = text_render.get_rect(center=(450, 300))
+                screen.blit(text_render, text_rect.center)
+                pygame.display.flip()
+                # playsound('timeout.mp3')
+                # Wait for 3 seconds
+                time.sleep(3)
             # Handle keyboard input to restart the game
             if game_over:
+                #display game over screen and final score
+                
+                screen.blit(start_screen_bg, (0, 0))
+                font = pygame.font.Font(None, 72)
+                text = font.render(f"Game Over! Your score is {score} press enter to restart", True, (255, 255, 255))
+                screen.blit(text, (screen_width // 2 - text.get_width() // 2, screen_height // 2 - text.get_height() // 2))
+                pygame.display.flip()
+                # playsound('endsound.mp3')
+                # Wait for 3 seconds
+            
+
+
                 keys = pygame.key.get_pressed()
                 if keys[pygame.K_RETURN]:  # Check if the Enter key is pressed
                     # Reset game variables
@@ -286,11 +362,12 @@ while True:
                     user_gestures = []
                     game_over = False
                     restart_pending = False
+                    
 
-        # Draw score on the screen
-        font = pygame.font.Font(None, 36)
-        score_text = font.render(f"Score: {score}", True, (255, 255, 255))
-        screen.blit(score_text, (screen_width - score_text.get_width() - 10, 0))
+            # Draw score on the screen
+    font = pygame.font.Font(None, 36)
+    score_text = font.render(f"Score: {score}", True, (255, 255, 255))
+    screen.blit(score_text, (screen_width - score_text.get_width() - 10, 0))
 
     # Update the Pygame display
     pygame.display.update()
